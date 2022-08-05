@@ -1,0 +1,360 @@
+---
+title: "Bellabeat Case study"
+author: "Bernard"
+date: "7/31/2022"
+output: html_document
+---
+## INTRODUCTION
+
+
+### Bellabeat 
+
+
+#### About the company   
+The Bellabeat fitbit collects data on activity, sleep, stress, and reproductive health has allowed Bellabeat to empower women with knowledge about their own health and habits. Since it was founded in 2013, Bellabeat has grown rapidly and quickly positioned itself as a tech-driven wellness company for women.
+
+#### Buisness Task    
+Identify trends on how consumers use their non-bellabeat smart device, and proffer recommendation on how Bellabeat marketing team can leverage on this; to develop great marketing strategies for more growth opportunities.
+
+**Questions guiding the analysis:**
+What are some trends in smart device usage?
+What could these trends tell us about the customers?
+How could these trends help influence Bellabeat marketing strategy?
+
+![FITBIT](C:/Users/USER/Downloads/archive/Fitabase Data 4.12.16-5.12.16/fitbit.jpg) 
+
+#### Loading libraries
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+library(lubridate)
+library(tidyverse)
+```
+
+
+
+#### Loading datasets
+```{r}
+dailyActivity <- read_csv("dailyActivity_merged.csv")
+
+dailyCalories <- read_csv("dailyCalories_merged.csv")
+
+dailyIntensities <- read_csv("dailyIntensities_merged.csv")
+
+dailySteps <- read_csv("dailySteps_merged.csv")
+
+hourlyCalories <- read_csv("hourlyCalories_merged.csv")
+
+hourlyIntensities <- read_csv("hourlyIntensities_merged.csv")
+
+hourlySteps <- read_csv("hourlySteps_merged.csv")
+
+Sleepday <- read_csv("sleepDay_merged.csv")
+
+```
+How many individuals data are available in each dataset  
+
+```{r}
+n_distinct(dailyActivity$Id)
+n_distinct(dailyCalories$Id)
+n_distinct(dailyIntensities$Id)
+n_distinct(dailySteps$Id)
+n_distinct(Sleepday$Id)
+```
+
+#### What activities do bellabeat users engage in. 
+
+```{r}
+dailyActivity %>% select(., TotalSteps, TotalDistance, VeryActiveDistance, ModeratelyActiveDistance, 
+                         LightActiveDistance, SedentaryActiveDistance, VeryActiveMinutes, 
+                         FairlyActiveMinutes, LightlyActiveMinutes, SedentaryMinutes, Calories) %>% summary()
+```
+From the summary the following can be deduced:   
+* Most users spend most time on Sedentary activities than other activities, with average minutes spent on Sedentary minutes is 991.2 minutes.  
+* Average step by users is 7638 steps.  
+* Average distance covered is 5.49.  
+* For the measures collected, most users fall in the lower end of the measures, with most users falling below the 75th percentile, leading to outliers on the higher end, (this can be observed by checking the difference between the 3rd quantiles and maximum of each measures). The only major deviation from this trend is the SedentaryMinutes measure.  
+
+
+#### Classify users based on number of steps
+
+**Using the classification below group users based on the average daily steps.** 
+
+Sedentary: Less than 5,000 steps daily  
+Low active: About 5,000 to 7,499 steps daily  
+Somewhat active: About 7,500 to 9,999 steps daily  
+Active: More than 10,000 steps daily  
+Highly active: More than 12,500 steps daily  
+classification based on: https://www.medicinenet.com/how_many_steps_a_day_is_considered_active/article.htm
+
+```{r}
+userclass <- dailyActivity %>% group_by(Id) %>% summarise(Steps=mean(TotalSteps))
+userclass$stepclass <- case_when(
+ userclass$Steps < 5000~ "Sedentary", 
+  userclass$Steps >= 5000 & userclass$Steps < 7500~ "low_active",
+  userclass$Steps >= 7500 & userclass$Steps < 10000~ "somewhat_active",
+  userclass$Steps >= 10000 & userclass$Steps < 12500~ "active",
+  TRUE~"very_active"
+)
+
+```
+
+
+
+```{r}
+ggplot(data= userclass)+
+  geom_bar(aes(x= stepclass), fill= "skyblue")+
+  theme(axis.title.y = element_blank(), 
+        axis.title.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        rect = element_blank())+
+  labs(title = "Distribution of users by their average steps per day")
+```
+
+Most users fall in the *low_active*, *Sedentary* and *somewhat_active* category.
+
+
+### Working with Date and Time   
+
+**Convert to date time format and add weekdays to the dataset**
+```{r}
+
+#dailyActivity
+
+dailyActivity$ActivityDate <- as.POSIXct(dailyActivity$ActivityDate, format= "%m/%d/%Y", tz=Sys.timezone())
+dailyActivity$Day <- as.POSIXct(dailyActivity$ActivityDate, format= "%m/%d/%Y" )
+dailyActivity$weekday <- wday(dailyActivity$ActivityDate, label = TRUE)
+
+#dailyCalories
+
+dailyCalories$ActivityDay <- as.POSIXct(dailyCalories$ActivityDay, format= "%m/%d/%Y", tz=Sys.timezone())
+dailyCalories$Day <- as.POSIXct(dailyCalories$ActivityDay, format= "%m/%d/%Y")
+dailyCalories$weekday <- wday(dailyCalories$ActivityDay, label = TRUE)
+
+#dailyIntensities
+dailyIntensities$ActivityDay <- as.POSIXct(dailyIntensities$ActivityDay, format= "%m/%d/%Y", tz=Sys.timezone())
+dailyIntensities$Day <- as.POSIXct(dailyIntensities$ActivityDay, format= "%m/%d/%Y")
+dailyIntensities$weekday <- wday(dailyIntensities$ActivityDay, label = TRUE)
+
+#dailySteps
+dailySteps$ActivityDay <- as.POSIXct(dailySteps$ActivityDay, format= "%m/%d/%Y", tz=Sys.timezone())
+dailySteps$Day <- as.POSIXct(dailySteps$ActivityDay, format= "%m/%d/%Y")
+dailySteps$weekday <- wday(dailySteps$ActivityDay, label = TRUE)
+
+#Sleepday
+Sleepday$SleepDay <-  as.POSIXct(Sleepday$SleepDay, format = "%m/%d/%Y %I:%M:%S %p",tz=Sys.timezone())
+Sleepday$Day <- as.POSIXct(Sleepday$SleepDay, format= "%m/%d/%Y")
+Sleepday$weekday <- wday(Sleepday$SleepDay, label = TRUE)
+
+#hourlyIntensities
+hourlyIntensities$ActivityHour <- as.POSIXct(hourlyIntensities$ActivityHour, format="%m/%d/%Y %I:%M:%S %p", tz=Sys.timezone())
+hourlyIntensities$time <- format(hourlyIntensities$ActivityHour, format = "%H:%M:%S")
+hourlyIntensities$date <- format(hourlyIntensities$ActivityHour, format = "%m/%d/%y")
+hourlyIntensities$weekday <- wday(hourlyIntensities$ActivityHour, label = TRUE)
+
+#hourlyCalories
+hourlyCalories$ActivityHour <- as.POSIXct(hourlyCalories$ActivityHour, format="%m/%d/%Y %I:%M:%S %p", tz=Sys.timezone())
+hourlyCalories$time <- format(hourlyCalories$ActivityHour, format = "%H:%M:%S")
+hourlyCalories$date <- format(hourlyCalories$ActivityHour, format = "%m/%d/%y")
+hourlyCalories$weekday <- wday(hourlyCalories$ActivityHour, label = TRUE)
+
+#hourlySteps
+hourlySteps$ActivityHour <- as.POSIXct(hourlySteps$ActivityHour, format="%m/%d/%Y %I:%M:%S %p", tz=Sys.timezone())
+hourlySteps$time <- format(hourlySteps$ActivityHour, format = "%H:%M:%S")
+hourlySteps$date <- format(hourlySteps$ActivityHour, format = "%m/%d/%y")
+hourlySteps$weekday <- wday(hourlySteps$ActivityHour, label = TRUE)
+```
+
+
+
+### How does our measures differ across the week?
+
+
+**How does the amount of Calories burnt differ across the week**
+```{r}
+
+dailyCalories %>% group_by(weekday) %>% summarise( Calories= mean(Calories)) %>% 
+ggplot(data = ., aes(x= weekday, y= Calories))+
+  geom_bar(stat = "identity", fill= "skyblue")+
+  geom_text(aes(label= round(Calories, 0)), vjust=2)+
+  theme(axis.text.y = element_blank(), 
+        axis.title.y = element_blank(), 
+        axis.title.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        rect = element_blank())+
+  labs(title = "How does the amount of Calories burnt differ across the days of the week")
+```
+
+
+#### Minutes slept per day
+```{r}
+Sleepday %>% group_by(weekday) %>% summarise(TotalMinutesAsleep= mean(TotalMinutesAsleep)) %>% 
+ggplot(data = ., aes(x= weekday, y= TotalMinutesAsleep))+
+  geom_bar(stat = "identity", fill= "skyblue")+
+  geom_text(aes(label= round(TotalMinutesAsleep)), vjust=2)+
+   theme(axis.text.y = element_blank(), 
+        axis.title.y = element_blank(), 
+        axis.title.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        rect = element_blank())+
+  labs(title = "How does the amount of Minutes slept differ across the days of the week")
+```
+
+
+Users don't get the recommended 8 hours (480 minutes) sleep required. Increasing the minutes asleep is very paramount.
+
+Which day of the week are the users most active
+```{r}
+dailyActivity %>% group_by(weekday) %>% summarise(VeryActiveMinutes=mean(VeryActiveMinutes)) %>%
+  ggplot(., aes(x=weekday, y=VeryActiveMinutes))+
+  geom_bar(stat = "identity", fill= "skyblue")+
+  geom_text(aes(label= round(VeryActiveMinutes)), vjust=2)+
+   theme(axis.text.y = element_blank(), 
+        axis.title.y = element_blank(), 
+        axis.title.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        rect = element_blank())+
+  labs(title = "On What days of the week are users most active")
+  
+```
+
+
+Which day of the week are users walking more
+```{r}
+dailyActivity %>% group_by(weekday) %>% summarise(Steps=mean(TotalSteps)) %>%
+  ggplot(., aes(x=weekday, y=Steps))+
+  geom_bar(stat = "identity", fill= "skyblue")+
+  geom_text(aes(label= round(Steps)), vjust=2)+
+   theme(axis.text.y = element_blank(), 
+        axis.title.y = element_blank(), 
+        axis.title.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        rect = element_blank())+
+  labs(title = "Which day of the week are users walking more")
+```
+
+
+Users are not going on enough walks on Sunday, with the average step taken on Sunday falling within the "low_active" category. The day with the highest number of  walks falls within the somewhat_active category. 
+
+
+Which day of the week are the users most Sedentary
+```{r}
+dailyActivity %>% group_by(weekday) %>% summarise(SedentaryMinutes=mean(SedentaryMinutes)) %>%
+  ggplot(., aes(x=weekday, y=SedentaryMinutes))+
+  geom_bar(stat = "identity", fill= "skyblue")+
+  geom_text(aes(label= round(SedentaryMinutes)), vjust=2)+
+   theme(axis.text.y = element_blank(), 
+        axis.title.y = element_blank(), 
+        axis.title.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        rect = element_blank())+
+  labs(title = "Which day of the week are users most Sedentary")
+```
+
+
+Users spend more time on Sedentary situation on Monday than any other day of the week. Thursday with the least amount of days on sedentary activities. 
+
+
+### How does our measures differ across hours of the day
+
+How does the amount of calories burnt differ by hour
+```{r}
+hourlyCalories %>% group_by(time) %>% summarise(Calories=mean(Calories)) %>% 
+  ggplot(., aes(x=time, y=Calories))+
+  geom_bar(stat="identity", size= 3, fill= "skyblue")+
+  geom_text(aes(label= round(Calories)), size= 3, vjust= 2)+
+  theme(axis.text.y = element_blank(), 
+        axis.title.y = element_blank(), 
+        axis.title.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        rect = element_blank(), 
+        axis.text.x = element_text(angle = 90))+
+  labs(title = "On What hour of the day are most calories burnt")
+ 
+```
+
+
+Are there hours of the day when intensity is higher
+```{r}
+hourlyIntensities %>% group_by(time) %>% summarise(intensities=mean(AverageIntensity)) %>% 
+  ggplot(., aes(x=time, y=intensities))+
+  geom_bar(stat="identity", size= 3, fill= "skyblue")+
+  geom_text(aes(label= round(intensities, 2)), size= 3, vjust= -0.5)+
+  theme(axis.text.y = element_blank(), 
+        axis.title.y = element_blank(), 
+        axis.title.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        rect = element_blank(), 
+        axis.text.x = element_text(angle = 90))+
+  labs(title = "What hour of the day are activities most intense")
+```
+
+
+Are there hours of the day when more steps are taken  
+```{r}
+hourlySteps %>% group_by(time) %>% summarise(steps=mean(StepTotal)) %>% 
+  ggplot(., aes(x=time, y=steps))+
+  geom_bar(stat="identity", size= 3, fill= "skyblue")+
+  geom_text(aes(label= round(steps, 0)), size= 3, vjust= -0.5)+
+  theme(axis.text.y = element_blank(), 
+        axis.title.y = element_blank(), 
+        axis.title.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        rect = element_blank(), 
+        axis.text.x = element_text(angle = 90))+
+  labs(title = "What hour of the day are most steps taken")
+```
+
+When comparing the lifestyle of users for each hour of the day, there's a visible uptick in amount of calories burnt, amount of steps taken and average intensity of activities during the day from the 4pm to 7pm, with their peak at 6pm and 7pm. 
+
+
+
+```{r}
+ggplot(data = dailyActivity, aes(x=TotalSteps, y= Calories))+
+  geom_point(colour= "skyblue", size= 2)+
+  geom_smooth(stat = "smooth")+
+  theme(rect = element_blank())+
+  labs(title = "Relationship between Steps and Calories", 
+       x= "Steps taken", 
+       y= "Calories burnt")
+```
+
+There's a strong relationship between the steps taken per day and the Calories burnt, users that want to lose weight should be encourage to take more steps
+
+```{r}
+summary(Sleepday)
+```
+Is there a correlation between TotalMinutesAsleep and TotalTimeInBed? 
+
+```{r}
+ggplot(data = Sleepday, aes(x=TotalTimeInBed, y= TotalMinutesAsleep))+
+  geom_point(colour= "skyblue", size= 2)+
+  geom_smooth(stat = "smooth")+
+  theme(rect = element_blank())+
+  labs(title = "Relationship between Total time in bed and Total Minutes asleep", 
+       x= "Time spent in bed", 
+       y= "Minutes asleep")
+```
+
+There's a very positive relationship between Time spent in bed and total minutes asleep,users that want to sleep should get in bed early. 
+
+
+
+
+### Recommendations  
+
+Bellabeat should **know her customers**, collect sufficient data that would help improve decision making as well as help improve the health of the customers. data such as Age of the customer, some preexisting health conditions.
+
+Bellabeats current customerbase consist of women that spend most hours of the day in sedentary to low-activity functions throughout the day. A focus group containing this population could be surveyed for input.
+
+Users should be able to set their health goals and a means of tracking it. The app should give summary of user achievements as compared to their goals, on a  daily, weekly and monthly bases.  
+
+For customers that want to loose weight, the app can notify them on the steps per calories that require burning, information on low calorie products. 
+
+For customers that want to sleep more, the app could notify users on excercising before bed and notifying them when to sleep. A night / sleep setting on the phone app and wearables that would stimulate sleeping early 
+
+Wearables, the Bellabeat wearables should be sleek and almost unnoticeable so users can wear it for a longer period of time and also make it waterproof. 
+
+The app should have a community where users can engage with one another 
+
+
+
